@@ -1,0 +1,19 @@
+# Root (monorepo)
+.idea/
+*.iml
+
+# Server
+server/node_modules/
+server/dist/
+server/.env
+server/uploads/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum TrainingGoal {
+  WEIGHT_LOSS
+  MUSCLE_GAIN
+  MAINTENANCE
+  ENDURANCE
+  GENERAL_FITNESS
+}
+
+enum BodyFocus {
+  LEGS
+  ARMS
+  CHEST
+  BACK
+  SHOULDERS
+  CORE
+  FULL_BODY
+  CARDIO
+  WEIGHT_LOSS
+}
+
+enum AchievementCriterion {
+  WORKOUT_COUNT
+  MAX_STREAK_DAYS
+  SURVEY_DONE
+  WEIGHT_LOG_COUNT
+}
+
+enum LibraryExerciseDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  displayName  String?
+  role         Role      @default(USER)
+  premiumUntil DateTime?
+  avatarUrl    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  profile         Profile?
+  assignment      UserProgramAssignment?
+  workoutSessions WorkoutSession[]
+  weightLogs      WeightLog[]
+
+  friendRequestsFrom FriendRequest[] @relation("FriendRequestFrom")
+  friendRequestsTo   FriendRequest[] @relation("FriendRequestTo")
+  friendshipsLower   Friendship[]    @relation("FriendshipLower")
+  friendshipsHigher  Friendship[]    @relation("FriendshipHigher")
+}
+
+model FriendRequest {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  fromUser   User     @relation("FriendRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser     User     @relation("FriendRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId])
+}
+
+model Friendship {
+  id           String   @id @default(cuid())
+  lowerUserId  String
+  higherUserId String
+  lowerUser    User     @relation("FriendshipLower", fields: [lowerUserId], references: [id], onDelete: Cascade)
+  higherUser   User     @relation("FriendshipHigher", fields: [higherUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([lowerUserId, higherUserId])
+  @@index([lowerUserId])
+  @@index([higherUserId])
+}
+
+model WeightLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightKg   Float
+  recordedAt DateTime @default(now())
+
+  @@index([userId, recordedAt])
+}
+
+model AchievementDefinition {
+  id                 String               @id @default(cuid())
+  title              String
+  description        String
+  criterion          AchievementCriterion
+  criterionThreshold Int?
+  sortOrder          Int                  @default(0)
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
+
+model Profile {
+  id                String            @id @default(cuid())
+  userId            String            @unique
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  heightCm          Int
+  weightKg          Float
+  age               Int
+  sex               Sex?
+  experienceLevel   ExperienceLevel
+  trainingGoal      TrainingGoal    @default(GENERAL_FITNESS)
+  gymAccess         Boolean
+  surveyCompletedAt DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model Program {
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  coverImageUrl  String?
+  isPremium      Boolean  @default(false)
+  assignmentKey  String?  @unique
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  days        ProgramDay[]
+  assignments UserProgramAssignment[]
+  sessions    WorkoutSession[]
+}
+
+/** Реестр типовых упражнений для быстрой сборки программ */
+model ExerciseLibrary {
+  id           String                    @id @default(cuid())
+  name         String
+  gifUrl       String
+  difficulty   LibraryExerciseDifficulty @default(MEDIUM)
+  /// JSON-массив кодов BodyFocus, например ["LEGS","CORE"]
+  bodyFocuses  Json                      @default("[]")
+  sortOrder    Int                       @default(0)
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  exercises Exercise[]
+}
+
+model ProgramDay {
+  id         String     @id @default(cuid())
+  programId  String
+  program    Program    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  dayIndex   Int
+  title      String?
+  bodyFocus  BodyFocus  @default(FULL_BODY)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  exercises Exercise[]
+  sessions  WorkoutSession[]
+
+  @@unique([programId, dayIndex])
+}
+
+model Exercise {
+  id                  String            @id @default(cuid())
+  programDayId        String
+  programDay          ProgramDay        @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  orderIndex          Int
+  name                String
+  sets                Int
+  reps                Int
+  restSeconds         Int               @default(60)
+  exerciseSeconds     Int               @default(0)
+  gifUrl              String?
+  imageUrl            String?
+  libraryExerciseId   String?
+  libraryExercise     ExerciseLibrary? @relation(fields: [libraryExerciseId], references: [id], onDelete: SetNull)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([programDayId, orderIndex])
+  @@index([libraryExerciseId])
+}
+
+model UserProgramAssignment {
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId  String
+  program    Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+}
+
+model WorkoutSession {
+  id              String     @id @default(cuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId       String
+  program         Program    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programDayId    String
+  programDay      ProgramDay @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  startedAt       DateTime?
+  completedAt     DateTime
+  durationSeconds Int
+  createdAt       DateTime   @default(now())
+
+  @@index([userId, completedAt])
+}

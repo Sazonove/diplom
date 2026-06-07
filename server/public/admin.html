@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Админ — Diplom</title>
+  <style>
+    :root { --border: #ddd; --muted: #555; --accent: #1565c0; }
+    body { font-family: system-ui, sans-serif; margin: 16px; max-width: 1200px; line-height: 1.4; }
+    h1 { font-size: 1.25rem; }
+    h2 { font-size: 1.05rem; margin-top: 1.25rem; }
+    h3 { font-size: 0.95rem; margin: 0.75rem 0 0.35rem; }
+    section { margin-bottom: 24px; border: 1px solid var(--border); padding: 12px; border-radius: 8px; }
+    label { display: block; margin: 6px 0 2px; font-size: 0.82rem; color: var(--muted); }
+    input, select, button, textarea { font: inherit; padding: 6px 8px; }
+    button { cursor: pointer; background: var(--accent); color: #fff; border: none; border-radius: 6px; }
+    button.secondary { background: #5f6368; }
+    button.danger { background: #c62828; }
+    button.small { padding: 4px 8px; font-size: 0.8rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { border-bottom: 1px solid #eee; padding: 8px 6px; text-align: left; vertical-align: top; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+    .err { color: #b00020; white-space: pre-wrap; }
+    .ok { color: #0a7; }
+    code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+    .day-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 10px 0; background: #fafafa; }
+    .day-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+    .exercise-grid { display: grid; grid-template-columns: 44px 1fr 56px 56px 64px 64px 1fr auto; gap: 4px; align-items: end; font-size: 0.8rem; }
+    .lib-focus-row { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; font-size: 0.82rem; }
+    .lib-focus-row label { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
+    @media (max-width: 900px) {
+      .exercise-grid { grid-template-columns: 1fr 1fr; }
+    }
+    .ex-hdr { font-weight: 600; color: var(--muted); font-size: 0.75rem; }
+    details.profile-details { margin-top: 4px; }
+    details.profile-details summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; }
+    .profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; margin-top: 8px; }
+    #progEditor { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .hint { font-size: 0.8rem; color: var(--muted); margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <h1>Админ-панель</h1>
+  <p>API: <code id="apiBase"></code>. Откройте эту страницу с того же хоста, что и сервер.</p>
+
+  <section id="loginBox">
+    <h2>Вход администратора</h2>
+    <div class="row">
+      <div><label>Email</label><input id="email" type="email" value="admin@diplom.local" /></div>
+      <div><label>Пароль</label><input id="password" type="password" value="Admin123!" /></div>
+      <button type="button" id="btnLogin">Войти</button>
+    </div>
+    <p class="err" id="loginErr"></p>
+  </section>
+
+  <section id="panel" style="display:none">
+    <div class="row">
+      <button type="button" id="btnLogout" class="secondary">Выйти</button>
+      <button type="button" id="btnReloadUsers">Обновить пользователей</button>
+      <button type="button" id="btnReloadAchievements">Обновить достижения</button>
+      <button type="button" id="btnReloadPrograms">Обновить программы</button>
+      <button type="button" id="btnReloadLib">Обновить реестр упражнений</button>
+    </div>
+    <p id="msg" class="ok"></p>
+
+    <h2>Пользователи</h2>
+    <h3>Новый пользователь</h3>
+    <div class="row">
+      <div><label>Email</label><input id="nuEmail" type="email" /></div>
+      <div><label>Имя (в приложении)</label><input id="nuName" type="text" lang="ru" autocomplete="name" placeholder="напр. Мария" style="min-width:140px" maxlength="80" /></div>
+      <div><label>Пароль (≥8)</label><input id="nuPass" type="password" /></div>
+      <div><label>Роль</label><select id="nuRole"><option>USER</option><option>ADMIN</option></select></div>
+      <button type="button" id="btnCreateUser">Создать</button>
+    </div>
+    <div style="overflow:auto">
+      <table id="usersTable">
+        <thead><tr><th>Учётная запись</th><th>Анкета (профиль)</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2>Достижения</h2>
+    <p class="hint">Что видит пользователь в профиле. <strong>Условие:</strong> число тренировок, дней серии подряд (UTC), анкета или записей веса. Для «Анкета заполнена» порог не нужен. Неактивные скрыты в приложении.</p>
+    <h3>Новое достижение</h3>
+    <div class="row">
+      <div style="flex:1; min-width:140px"><label>Название</label><input id="naTitle" style="width:100%" placeholder="Кратко" /></div>
+      <div style="flex:2; min-width:200px"><label>Описание</label><input id="naDesc" style="width:100%" placeholder="Условие для пользователя" /></div>
+      <div style="min-width:200px"><label>Условие (тип)</label><select id="naCrit" style="width:100%"></select></div>
+      <div><label>Порог</label><input id="naThresh" type="number" min="1" style="width:72px" title="Для анкеты не используется" /></div>
+      <div><label>Порядок</label><input id="naSort" type="number" value="0" style="width:64px" /></div>
+      <div><label>Активно</label><select id="naAct"><option value="true">Да</option><option value="false">Нет</option></select></div>
+      <button type="button" id="btnCreateAch">Добавить</button>
+    </div>
+    <div style="overflow:auto; margin-top:8px">
+      <table id="achievementsTable">
+        <thead><tr><th>ID</th><th>Название / описание / условие</th><th>Порядок</th><th>Активно</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2>Реестр упражнений</h2>
+    <p class="hint">Шаблоны упражнений с GIF и группами мышц. В редакторе дня можно добавить упражнение из реестра — подтянутся название и GIF; подходы и повторы задаёте сами.</p>
+    <h3>Новая запись</h3>
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:1; min-width:160px"><label>Название</label><input id="nlName" style="width:100%" placeholder="напр. Отжимания" /></div>
+      <div style="flex:2; min-width:220px"><label>GIF (URL)</label><input id="nlGif" type="url" style="width:100%" placeholder="https://...gif" /></div>
+      <div><label>Сложность</label><select id="nlDiff"></select></div>
+      <div><label>Порядок</label><input id="nlSort" type="number" value="0" style="width:64px" /></div>
+      <button type="button" id="btnLibCreate">Добавить в реестр</button>
+    </div>
+    <div style="margin-top:8px">
+      <span class="ex-hdr">Группы / фокус</span>
+      <div id="nlFocus" class="lib-focus-row"></div>
+    </div>
+    <div style="overflow:auto; margin-top:12px">
+      <table id="libTable">
+        <thead><tr><th>Название / GIF / сложность</th><th>Группы</th><th>Порядок</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2>Программы тренировок</h2>
+    <p class="hint">Одна программа = одна тренировка (список упражнений). После создания программы автоматически появляется день с фокусом «Всё тело» — смените фокус и заголовок при необходимости. Второй день добавить нельзя.</p>
+    <h3>Новая программа</h3>
+    <div class="row">
+      <div><label>Название</label><input id="npTitle" style="min-width:200px" /></div>
+      <div><label>Описание</label><input id="npDesc" style="min-width:220px" placeholder="Кратко" /></div>
+      <div><label>Ключ назначения</label><input id="npKey" placeholder="напр. WEIGHT_LOSS_W1" style="min-width:160px" /></div>
+      <div><label>Порядок сортировки</label><input id="npSort" type="number" value="0" style="width:72px" /></div>
+      <div><label>Premium</label><select id="npPrem"><option value="false">Нет</option><option value="true">Да</option></select></div>
+      <div><label>Обложка (URL)</label><input id="npCover" type="url" placeholder="https://..." style="min-width:200px" /></div>
+      <button type="button" id="btnCreateProgram">Создать</button>
+    </div>
+
+    <div style="overflow:auto; margin-top:12px">
+      <table id="programsTable">
+        <thead><tr><th>Название</th><th>Premium</th><th>Ключ</th><th>Трен.</th><th>ID</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h3>Редактор программы</h3>
+    <div class="row">
+      <div style="min-width:280px; flex:1">
+        <label>Выберите программу</label>
+        <select id="progSelect" style="width:100%"><option value="">— выберите —</option></select>
+      </div>
+      <button type="button" id="btnRefreshEditor" class="secondary">Обновить из сервера</button>
+    </div>
+
+    <div id="progEditor" style="display:none">
+      <input type="hidden" id="peId" />
+      <div class="row">
+        <div style="flex:1; min-width:200px"><label>Название</label><input id="peTitle" style="width:100%" /></div>
+        <div><label>Premium</label><select id="pePrem"><option value="false">Нет</option><option value="true">Да</option></select></div>
+        <div style="min-width:140px"><label>Порядок</label><input id="peSort" type="number" /></div>
+      </div>
+      <label>Описание</label>
+      <textarea id="peDesc" rows="2" style="width:100%"></textarea>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1"><label>Ключ назначения (assignmentKey)</label><input id="peKey" style="width:100%" /></div>
+        <div style="flex:1"><label>Обложка (URL)</label><input id="peCover" type="url" style="width:100%" /></div>
+        <button type="button" id="btnSaveProgramMeta">Сохранить основные данные</button>
+      </div>
+
+      <h3>Тренировка (один день)</h3>
+      <p class="hint" id="singleWorkoutHint">Фокус дня попадает в раздел каталога в приложении (Всё тело, Ноги, Руки, Пресс и т.д.).</p>
+      <div class="row" style="align-items:flex-end; margin-bottom:8px">
+        <div><label>Номер дня</label><input id="newDayIndex" type="number" min="1" max="31" value="1" style="width:64px" /></div>
+        <div><label>Заголовок дня (необяз.)</label><input id="newDayTitle" placeholder="День 1" style="min-width:140px" /></div>
+        <div><label>Фокус</label><select id="newDayFocus"></select></div>
+        <button type="button" id="btnAddDay">Добавить день</button>
+      </div>
+      <div id="daysRoot"></div>
+    </div>
+
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer; color:var(--muted)">Расширенно: JSON программы</summary>
+      <p class="hint">Только для отладки. Основной способ редактирования — формы выше.</p>
+      <textarea id="epJson" rows="8" style="width:100%; font-family:monospace; font-size:12px"></textarea>
+      <button type="button" id="btnSaveFromJson" class="secondary small">Применить метаданные из JSON</button>
+    </details>
+  </section>
+
+  <script>
+    const apiBase = '';
+    document.getElementById('apiBase').textContent = location.origin;
+
+    let token = localStorage.getItem('admin_jwt') || '';
+    let programsCache = [];
+    let exerciseLibraryCache = [];
+
+    const BODY_FOCUS_OPTS = [
+      ['LEGS', 'Ноги'], ['ARMS', 'Руки'], ['CORE', 'Пресс'], ['WEIGHT_LOSS', 'Похудение'],
+      ['CHEST', 'Грудь'], ['BACK', 'Спина'],
+      ['SHOULDERS', 'Плечи'], ['FULL_BODY', 'Всё тело'], ['CARDIO', 'Кардио'],
+    ];
+    const SEX_OPTS = [['', '—'], ['MALE', 'М'], ['FEMALE', 'Ж'], ['OTHER', 'Другое']];
+    const EXP_OPTS = [
+      ['BEGINNER', 'Начинающий'], ['INTERMEDIATE', 'Средний'], ['ADVANCED', 'Продвинутый'],
+    ];
+    const GOAL_OPTS = [
+      ['WEIGHT_LOSS', 'Похудение'], ['MUSCLE_GAIN', 'Набор массы'], ['MAINTENANCE', 'Поддержание'],
+      ['ENDURANCE', 'Выносливость'], ['GENERAL_FITNESS', 'Общая форма'],
+    ];
+    const ACH_CRITERION_OPTS = [
+      ['WORKOUT_COUNT', 'Число тренировок ≥'],
+      ['MAX_STREAK_DAYS', 'Дней серии подряд ≥'],
+      ['SURVEY_DONE', 'Анкета заполнена'],
+      ['WEIGHT_LOG_COUNT', 'Записей веса ≥'],
+    ];
+
+    const LIB_DIFF_OPTS = [
+      ['EASY', 'Лёгкая'],
+      ['MEDIUM', 'Средняя'],
+      ['HARD', 'Сложная'],
+    ];
+
+    function fillSelect(el, pairs, cur) {
+      el.innerHTML = pairs.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+      if (cur != null && cur !== '') el.value = cur;
+    }
+
+    function headersAuth() {
+      const h = { 'Content-Type': 'application/json' };
+      if (token) h['Authorization'] = `Bearer ${token}`;
+      return h;
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(apiBase + path, { ...opts, headers: { ...headersAuth(), ...(opts.headers || {}) } });
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+      if (!res.ok) {
+        const msg = data?.error?.message || text || res.statusText;
+        throw new Error(msg);
+      }
+      return data;
+    }
+
+    function toDatetimeLocal(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function escAttr(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function showMsg(t, ok = true) {
+      const el = document.getElementById('msg');
+      el.textContent = t;
+      el.className = ok ? 'ok' : 'err';
+    }
+
+    function optHtml(pairs, cur) {
+      return pairs.map(([v, l]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${l}</option>`).join('');
+    }
+
+    function buildNlFocusCheckboxes() {
+      const root = document.getElementById('nlFocus');
+      if (!root) return;
+      root.innerHTML = BODY_FOCUS_OPTS.map(
+        ([v, l]) => `<label><input type="checkbox" class="nlF" value="${v}" /> ${l}</label>`,
+      ).join('');
+    }
+
+    async function reloadExerciseLibrary() {
+      const data = await api('/api/admin/exercise-library');
+      exerciseLibraryCache = data.items || [];
+      const tb = document.querySelector('#libTable tbody');
+      if (!tb) return;
+      tb.innerHTML = '';
+      for (const it of exerciseLibraryCache) {
+        const tr = document.createElement('tr');
+        tr.dataset.libId = it.id;
+        const focuses = Array.isArray(it.bodyFocuses) ? it.bodyFocuses : [];
+        const checks = BODY_FOCUS_OPTS.map(([v, l]) => {
+          const on = focuses.includes(v) ? 'checked' : '';
+          return `<label><input type="checkbox" class="lfCh" value="${v}" ${on} /> ${l}</label>`;
+        }).join('');
+        tr.innerHTML = `
+          <td>
+            <div><input class="lfName" value="${escAttr(it.name)}" style="width:100%; margin-bottom:4px" /></div>
+            <div><input class="lfGif" type="url" value="${escAttr(it.gifUrl)}" style="width:100%" placeholder="GIF URL" /></div>
+            <div style="margin-top:4px"><label>Сложность</label><select class="lfDiff">${optHtml(LIB_DIFF_OPTS, it.difficulty)}</select></div>
+          </td>
+          <td><div class="lib-focus-row">${checks}</div></td>
+          <td><input class="lfSort" type="number" value="${it.sortOrder}" style="width:64px" /></td>
+          <td style="white-space:nowrap"><button type="button" class="small btnLfSave">Сохранить</button> <button type="button" class="danger small btnLfDel">Удалить</button></td>`;
+        tr.querySelector('.btnLfSave').onclick = async () => {
+          const bodyFocuses = [...tr.querySelectorAll('.lfCh:checked')].map((c) => c.value);
+          if (bodyFocuses.length < 1) return alert('Укажите хотя бы одну группу');
+          try {
+            await api('/api/admin/exercise-library/' + it.id, {
+              method: 'PUT',
+              body: JSON.stringify({
+                name: tr.querySelector('.lfName').value.trim(),
+                gifUrl: tr.querySelector('.lfGif').value.trim(),
+                difficulty: tr.querySelector('.lfDiff').value,
+                bodyFocuses,
+                sortOrder: Number(tr.querySelector('.lfSort').value) || 0,
+              }),
+            });
+            showMsg('Запись реестра сохранена');
+            await reloadExerciseLibrary();
+          } catch (e) {
+            alert(e.message);
+          }
+        };
+        tr.querySelector('.btnLfDel').onclick = async () => {
+          if (!confirm('Удалить из реестра?')) return;
+          try {
+            await api('/api/admin/exercise-library/' + it.id, { method: 'DELETE' });
+            showMsg('Удалено из реестра');
+            await reloadExerciseLibrary();
+          } catch (e) {
+            alert(e.message);
+          }
+        };
+        tb.appendChild(tr);
+      }
+    }
+
+    document.getElementById('btnLogin').onclick = async () => {
+      document.getElementById('loginErr').textContent = '';
+      try {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+        if (data.user.role !== 'ADMIN') throw new Error('Нужна роль ADMIN');
+        token = data.token;
+        localStorage.setItem('admin_jwt', token);
+        document.getElementById('loginBox').style.display = 'none';
+        document.getElementById('panel').style.display = 'block';
+        fillSelect(document.getElementById('newDayFocus'), BODY_FOCUS_OPTS, 'FULL_BODY');
+        fillSelect(document.getElementById('naCrit'), ACH_CRITERION_OPTS, 'WORKOUT_COUNT');
+        fillSelect(document.getElementById('nlDiff'), LIB_DIFF_OPTS, 'MEDIUM');
+        buildNlFocusCheckboxes();
+        await reloadAll();
+      } catch (e) {
+        document.getElementById('loginErr').textContent = String(e.message || e);
+      }
+    };
+
+    document.getElementById('btnLogout').onclick = () => {
+      token = '';
+      localStorage.removeItem('admin_jwt');
+      location.reload();
+    };
+
+    async function reloadUsers() {
+      const data = await api('/api/admin/users');
+      const tb = document.querySelector('#usersTable tbody');
+      tb.innerHTML = '';
+      for (const u of data.users) {
+        const tr = document.createElement('tr');
+        tr.dataset.userId = u.id;
+        tr.dataset.origEmail = u.email;
+        const premVal = toDatetimeLocal(u.premiumUntil);
+        const pr = u.profile;
+        tr.innerHTML = `
+          <td>
+            <div class="row" style="align-items:flex-end">
+              <div><label>Email</label><input class="emailIn" type="email" value="${escAttr(u.email)}" style="min-width:180px" /></div>
+              <div><label>Имя</label><input class="displayNameIn" type="text" lang="ru" autocomplete="name" value="${escAttr(u.displayName || '')}" placeholder="рус. или лат." style="min-width:140px" maxlength="80" /></div>
+              <div><label>Роль</label><select class="roleSel" style="min-width:88px"><option>USER</option><option>ADMIN</option></select></div>
+              <div><label>Премиум до</label><input class="premIn" type="datetime-local" value="${escAttr(premVal)}" /></div>
+              <div><label>Новый пароль</label><input class="pwdIn" type="password" placeholder="не менять" style="min-width:100px" /></div>
+            </div>
+          </td>
+          <td>
+            <details class="profile-details">
+              <summary>Анкета ${pr ? '✓' : '(нет)'}</summary>
+              <div class="profile-grid">
+                <div><label>Рост, см</label><input class="pfH" type="number" min="100" max="250" value="${pr?.heightCm ?? ''}" placeholder="170" /></div>
+                <div><label>Вес, кг</label><input class="pfW" type="number" step="0.1" min="30" max="300" value="${pr?.weightKg ?? ''}" placeholder="70" /></div>
+                <div><label>Возраст</label><input class="pfAge" type="number" min="10" max="120" value="${pr?.age ?? ''}" placeholder="25" /></div>
+                <div><label>Пол</label><select class="pfSex">${optHtml(SEX_OPTS, pr?.sex ?? '')}</select></div>
+                <div><label>Опыт</label><select class="pfExp">${optHtml(EXP_OPTS, pr?.experienceLevel ?? 'BEGINNER')}</select></div>
+                <div><label>Цель</label><select class="pfGoal">${optHtml(GOAL_OPTS, pr?.trainingGoal ?? 'GENERAL_FITNESS')}</select></div>
+                <div><label>Зал</label><select class="pfGym"><option value="false">Нет</option><option value="true">Да</option></select></div>
+                <div><label>Анкета заполнена</label><input class="pfSurvey" type="datetime-local" value="${escAttr(toDatetimeLocal(pr?.surveyCompletedAt))}" /></div>
+              </div>
+            </details>
+          </td>
+          <td><button type="button" class="saveUser">Сохранить</button></td>`;
+        tr.querySelector('.roleSel').value = u.role;
+        if (pr) tr.querySelector('.pfGym').value = pr.gymAccess ? 'true' : 'false';
+        else tr.querySelector('.pfGym').value = 'false';
+        tb.appendChild(tr);
+      }
+      tb.querySelectorAll('.saveUser').forEach((btn) => {
+        btn.onclick = async () => {
+          const row = btn.closest('tr');
+          const id = row.dataset.userId;
+          const origEmail = row.dataset.origEmail;
+          const payload = { role: row.querySelector('.roleSel').value };
+          const newEmail = row.querySelector('.emailIn').value.trim();
+          if (newEmail && newEmail !== origEmail) payload.email = newEmail;
+          const pwd = row.querySelector('.pwdIn').value;
+          if (pwd.length > 0) {
+            if (pwd.length < 8) return alert('Пароль не меньше 8 символов');
+            payload.password = pwd;
+          }
+          const premInput = row.querySelector('.premIn').value;
+          payload.premiumUntil = premInput ? new Date(premInput).toISOString() : null;
+          payload.displayName = row.querySelector('.displayNameIn').value.trim();
+
+          const h = row.querySelector('.pfH').value;
+          const w = row.querySelector('.pfW').value;
+          const age = row.querySelector('.pfAge').value;
+          const sex = row.querySelector('.pfSex').value;
+          const surveyEl = row.querySelector('.pfSurvey').value;
+          payload.profile = {
+            heightCm: h === '' ? undefined : Number(h),
+            weightKg: w === '' ? undefined : Number(w),
+            age: age === '' ? undefined : Number(age),
+            sex: sex === '' ? null : sex,
+            experienceLevel: row.querySelector('.pfExp').value,
+            trainingGoal: row.querySelector('.pfGoal').value,
+            gymAccess: row.querySelector('.pfGym').value === 'true',
+            surveyCompletedAt: surveyEl ? new Date(surveyEl).toISOString() : null,
+          };
+
+          try {
+            await api('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
+            showMsg('Сохранено: ' + id);
+            row.querySelector('.pwdIn').value = '';
+            await reloadUsers();
+          } catch (e) {
+            alert(e.message);
+          }
+        };
+      });
+    }
+
+    function syncProgramSelect() {
+      const sel = document.getElementById('progSelect');
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">— выберите программу —</option>';
+      for (const p of programsCache) {
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = p.title + (p.isPremium ? ' ★' : '');
+        sel.appendChild(o);
+      }
+      if (cur && programsCache.some((x) => x.id === cur)) sel.value = cur;
+    }
+
+    function renderDays(program) {
+      const root = document.getElementById('daysRoot');
+      root.innerHTML = '';
+      const days = [...(program.days || [])].sort((a, b) => a.dayIndex - b.dayIndex);
+      for (const d of days) {
+        const libOpts =
+          exerciseLibraryCache.length === 0
+            ? '<option value="">(реестр пуст — добавьте записи выше)</option>'
+            : '<option value="">— выберите из реестра —</option>' +
+              exerciseLibraryCache
+                .map((x) => `<option value="${escAttr(x.id)}">${escAttr(x.name)}</option>`)
+                .join('');
+        const card = document.createElement('div');
+        card.className = 'day-card';
+        card.dataset.dayId = d.id;
+        const exRows = (d.exercises || [])
+          .slice()
+          .sort((a, b) => a.orderIndex - b.orderIndex)
+          .map((ex) => {
+            const libExId = ex.libraryExerciseId || '';
+            const gifRow = libExId
+              ? `<div style="grid-column:1/-1;font-size:0.78rem;color:var(--muted)">GIF: <strong>из реестра</strong> (меняется только в шаблоне упражнений).</div>`
+              : `<div><span class="ex-hdr">GIF URL</span><input class="exGif" type="url" value="${escAttr(ex.gifUrl || '')}" placeholder="https://...gif" /></div>`;
+            return `
+          <div class="exercise-grid" data-ex-id="${escAttr(ex.id)}" data-library-exercise-id="${escAttr(libExId)}">
+            <div><span class="ex-hdr">№</span><input class="exOrd" type="number" min="1" max="100" value="${ex.orderIndex}" /></div>
+            <div><span class="ex-hdr">Упражнение</span><input class="exName" value="${escAttr(ex.name)}" /></div>
+            <div><span class="ex-hdr">Подх.</span><input class="exSets" type="number" min="1" max="50" value="${ex.sets}" /></div>
+            <div><span class="ex-hdr">Повт.</span><input class="exReps" type="number" min="1" max="200" value="${ex.reps}" /></div>
+            <div><span class="ex-hdr">Отд., с</span><input class="exRest" type="number" min="0" max="600" value="${ex.restSeconds}" /></div>
+            <div><span class="ex-hdr">Упр., с</span><input class="exSec" type="number" min="0" max="3600" value="${ex.exerciseSeconds}" /></div>
+            ${gifRow}
+            <div style="grid-column:1/-1"><span class="ex-hdr">Фото URL</span><input class="exImg" type="url" value="${escAttr(ex.imageUrl || '')}" placeholder="https://..." style="width:100%" /></div>
+            <div><button type="button" class="danger small btnDelEx">✕</button></div>
+          </div>`;
+          })
+          .join('');
+
+        card.innerHTML = `
+          <div class="day-head">
+            <div><label>День №</label><input class="dIdx" type="number" min="1" max="31" value="${d.dayIndex}" style="width:64px" /></div>
+            <div style="flex:1; min-width:140px"><label>Заголовок</label><input class="dTitle" value="${escAttr(d.title || '')}" style="width:100%" /></div>
+            <div><label>Фокус группы</label><select class="dFocus">${optHtml(BODY_FOCUS_OPTS, d.bodyFocus)}</select></div>
+            <button type="button" class="secondary small btnSaveDay">Сохранить день</button>
+            <button type="button" class="danger small btnDelDay">Удалить день</button>
+          </div>
+          <p class="hint">Упражнения — правки при уходе с поля. Если упражнение из <strong>реестра</strong>, GIF меняется только в реестре, не в строке программы.</p>
+          <div class="ex-list">${exRows || '<p class="hint">Нет упражнений</p>'}</div>
+          <div class="row" style="margin-top:8px; border-top:1px dashed #ccc; padding-top:8px">
+            <div><label>№ в дне</label><input class="nxOrd" type="number" min="1" value="${(d.exercises || []).length + 1}" style="width:56px" /></div>
+            <div style="flex:1"><label>Название</label><input class="nxName" placeholder="Новое упражнение" style="width:100%" /></div>
+            <div><label>Подх.</label><input class="nxSets" type="number" value="3" style="width:52px" /></div>
+            <div><label>Повт.</label><input class="nxReps" type="number" value="12" style="width:52px" /></div>
+            <button type="button" class="small btnAddEx">+ упражнение</button>
+          </div>
+          <div class="row" style="margin-top:8px; flex-wrap:wrap; align-items:flex-end">
+            <div style="flex:1; min-width:200px"><label>Из реестра (те же №, подх., повт.)</label><select class="libPick" style="width:100%">${libOpts}</select></div>
+            <button type="button" class="small secondary btnAddFromLib">В день из реестра</button>
+          </div>`;
+        root.appendChild(card);
+
+        card.querySelector('.btnSaveDay').onclick = async () => {
+          const dayId = card.dataset.dayId;
+          await api('/api/admin/days/' + dayId, {
+            method: 'PUT',
+            body: JSON.stringify({
+              dayIndex: Number(card.querySelector('.dIdx').value),
+              title: card.querySelector('.dTitle').value.trim() || null,
+              bodyFocus: card.querySelector('.dFocus').value,
+            }),
+          });
+          showMsg('День сохранён');
+          await reloadPrograms();
+          document.getElementById('progSelect').value = program.id;
+          await openProgramEditor(program.id);
+        };
+
+        card.querySelector('.btnDelDay').onclick = async () => {
+          if (!confirm('Удалить день и все упражнения?')) return;
+          await api('/api/admin/days/' + card.dataset.dayId, { method: 'DELETE' });
+          await reloadPrograms();
+          document.getElementById('progSelect').value = program.id;
+          await openProgramEditor(program.id);
+        };
+
+        card.querySelectorAll('.btnDelEx').forEach((b) => {
+          b.onclick = async () => {
+            const grid = b.closest('.exercise-grid');
+            const exId = grid.dataset.exId;
+            if (!confirm('Удалить упражнение?')) return;
+            await api('/api/admin/exercises/' + exId, { method: 'DELETE' });
+            await reloadPrograms();
+            document.getElementById('progSelect').value = program.id;
+            await openProgramEditor(program.id);
+          };
+        });
+
+        card.querySelectorAll('.exercise-grid').forEach((grid) => {
+          const exId = grid.dataset.exId;
+          const saveEx = async () => {
+            const libEx = grid.dataset.libraryExerciseId || '';
+            const img = grid.querySelector('.exImg').value.trim();
+            const payload = {
+              orderIndex: Number(grid.querySelector('.exOrd').value),
+              name: grid.querySelector('.exName').value.trim(),
+              sets: Number(grid.querySelector('.exSets').value),
+              reps: Number(grid.querySelector('.exReps').value),
+              restSeconds: Number(grid.querySelector('.exRest').value),
+              exerciseSeconds: Number(grid.querySelector('.exSec').value),
+              imageUrl: img || null,
+            };
+            if (!libEx) {
+              const gifInp = grid.querySelector('.exGif');
+              const gif = gifInp ? gifInp.value.trim() : '';
+              payload.gifUrl = gif || null;
+            }
+            await api('/api/admin/exercises/' + exId, {
+              method: 'PUT',
+              body: JSON.stringify(payload),
+            });
+            showMsg('Упражнение сохранено');
+          };
+          grid.querySelectorAll('input').forEach((inp) => {
+            inp.addEventListener('blur', saveEx);
+          });
+        });
+
+        card.querySelector('.btnAddEx').onclick = async () => {
+          const name = card.querySelector('.nxName').value.trim();
+          if (!name) return alert('Название упражнения');
+          await api('/api/admin/days/' + card.dataset.dayId + '/exercises', {
+            method: 'POST',
+            body: JSON.stringify({
+              orderIndex: Number(card.querySelector('.nxOrd').value),
+              name,
+              sets: Number(card.querySelector('.nxSets').value),
+              reps: Number(card.querySelector('.nxReps').value),
+              restSeconds: 60,
+              exerciseSeconds: 0,
+              gifUrl: null,
+              imageUrl: null,
+            }),
+          });
+          card.querySelector('.nxName').value = '';
+          await reloadPrograms();
+          document.getElementById('progSelect').value = program.id;
+          await openProgramEditor(program.id);
+        };
+
+        card.querySelector('.btnAddFromLib').onclick = async () => {
+          const sel = card.querySelector('.libPick');
+          const libId = sel.value;
+          if (!libId) return alert('Выберите упражнение из реестра');
+          try {
+            await api('/api/admin/days/' + card.dataset.dayId + '/exercises/from-library', {
+              method: 'POST',
+              body: JSON.stringify({
+                libraryExerciseId: libId,
+                orderIndex: Number(card.querySelector('.nxOrd').value),
+                sets: Number(card.querySelector('.nxSets').value),
+                reps: Number(card.querySelector('.nxReps').value),
+                restSeconds: 60,
+                exerciseSeconds: 0,
+              }),
+            });
+            showMsg('Упражнение из реестра добавлено');
+            sel.selectedIndex = 0;
+            await reloadPrograms();
+            document.getElementById('progSelect').value = program.id;
+            await openProgramEditor(program.id);
+          } catch (e) {
+            alert(e.message);
+          }
+        };
+      }
+    }
+
+    async function openProgramEditor(programId) {
+      const data = await api('/api/admin/programs');
+      programsCache = data.programs;
+      syncProgramSelect();
+      const program = programsCache.find((x) => x.id === programId);
+      if (!program) {
+        document.getElementById('progEditor').style.display = 'none';
+        return;
+      }
+      document.getElementById('progEditor').style.display = 'block';
+      document.getElementById('peId').value = program.id;
+      document.getElementById('peTitle').value = program.title;
+      document.getElementById('peDesc').value = program.description || '';
+      document.getElementById('peCover').value = program.coverImageUrl || '';
+      document.getElementById('pePrem').value = String(program.isPremium);
+      document.getElementById('peKey').value = program.assignmentKey || '';
+      document.getElementById('peSort').value = program.sortOrder ?? 0;
+      document.getElementById('epJson').value = JSON.stringify(program, null, 2);
+      await reloadExerciseLibrary();
+      renderDays(program);
+      const btnAddDay = document.getElementById('btnAddDay');
+      const dayCount = (program.days || []).length;
+      btnAddDay.disabled = dayCount >= 1;
+      btnAddDay.title =
+        dayCount >= 1
+          ? 'В программе уже одна тренировка — второй день не добавляется'
+          : 'Добавить день (если в старой программе ещё нет ни одного дня)';
+    }
+
+    document.getElementById('progSelect').onchange = async () => {
+      const id = document.getElementById('progSelect').value;
+      if (!id) {
+        document.getElementById('progEditor').style.display = 'none';
+        return;
+      }
+      try {
+        await openProgramEditor(id);
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    document.getElementById('btnRefreshEditor').onclick = async () => {
+      const id = document.getElementById('progSelect').value;
+      if (!id) return;
+      await reloadPrograms();
+      await openProgramEditor(id);
+    };
+
+    document.getElementById('btnSaveProgramMeta').onclick = async () => {
+      const id = document.getElementById('peId').value;
+      const keyRaw = document.getElementById('peKey').value.trim();
+      await api('/api/admin/programs/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: document.getElementById('peTitle').value.trim(),
+          description: document.getElementById('peDesc').value.trim() || null,
+          coverImageUrl: document.getElementById('peCover').value.trim() || null,
+          isPremium: document.getElementById('pePrem').value === 'true',
+          assignmentKey: keyRaw || null,
+          sortOrder: Number(document.getElementById('peSort').value),
+        }),
+      });
+      showMsg('Программа сохранена');
+      await reloadPrograms();
+      document.getElementById('progSelect').value = id;
+      await openProgramEditor(id);
+    };
+
+    document.getElementById('btnAddDay').onclick = async () => {
+      const pid = document.getElementById('peId').value;
+      if (!pid) return alert('Выберите программу');
+      try {
+        const dayIndex = Number(document.getElementById('newDayIndex').value);
+        const title = document.getElementById('newDayTitle').value.trim() || null;
+        const bodyFocus = document.getElementById('newDayFocus').value;
+        await api('/api/admin/programs/' + pid + '/days', {
+          method: 'POST',
+          body: JSON.stringify({ dayIndex, title, bodyFocus }),
+        });
+        showMsg('День добавлен');
+        await reloadPrograms();
+        document.getElementById('progSelect').value = pid;
+        await openProgramEditor(pid);
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    document.getElementById('btnSaveFromJson').onclick = async () => {
+      let p;
+      try {
+        p = JSON.parse(document.getElementById('epJson').value);
+      } catch {
+        return alert('Невалидный JSON');
+      }
+      const id = p.id || document.getElementById('peId').value;
+      await api('/api/admin/programs/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: p.title,
+          description: p.description,
+          coverImageUrl: p.coverImageUrl,
+          isPremium: p.isPremium,
+          assignmentKey: p.assignmentKey,
+          sortOrder: p.sortOrder,
+        }),
+      });
+      showMsg('Метаданные из JSON применены');
+      await reloadPrograms();
+      document.getElementById('progSelect').value = id;
+      await openProgramEditor(id);
+    };
+
+    async function reloadPrograms() {
+      const data = await api('/api/admin/programs');
+      programsCache = data.programs;
+      syncProgramSelect();
+      const tb = document.querySelector('#programsTable tbody');
+      tb.innerHTML = '';
+      for (const p of programsCache) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escAttr(p.title)}</td><td>${p.isPremium}</td><td>${escAttr(p.assignmentKey || '—')}</td>
+          <td>${(p.days || []).length}</td>
+          <td style="font-size:11px; word-break:break-all">${escAttr(p.id)}</td>
+          <td>
+            <button type="button" class="small btnPickProg" data-id="${escAttr(p.id)}">Открыть</button>
+            <button type="button" class="danger small delProg" data-id="${escAttr(p.id)}">Удалить</button>
+          </td>`;
+        tb.appendChild(tr);
+      }
+      tb.querySelectorAll('.btnPickProg').forEach((btn) => {
+        btn.onclick = async () => {
+          const id = btn.getAttribute('data-id');
+          document.getElementById('progSelect').value = id;
+          await openProgramEditor(id);
+        };
+      });
+      tb.querySelectorAll('.delProg').forEach((btn) => {
+        btn.onclick = async () => {
+          if (!confirm('Удалить программу?')) return;
+          const id = btn.getAttribute('data-id');
+          await api('/api/admin/programs/' + id, { method: 'DELETE' });
+          if (document.getElementById('peId').value === id) {
+            document.getElementById('progEditor').style.display = 'none';
+            document.getElementById('progSelect').value = '';
+          }
+          await reloadPrograms();
+        };
+      });
+    }
+
+    function syncAchThreshInputs(root) {
+      root.querySelectorAll('tr[data-ach-id]').forEach((tr) => {
+        const sel = tr.querySelector('.achCrit');
+        const inp = tr.querySelector('.achTh');
+        if (!sel || !inp) return;
+        const dis = sel.value === 'SURVEY_DONE';
+        inp.disabled = dis;
+        if (dis) inp.value = '';
+      });
+    }
+
+    async function reloadAchievements() {
+      const data = await api('/api/admin/achievements');
+      const tb = document.querySelector('#achievementsTable tbody');
+      tb.innerHTML = '';
+      for (const a of data.achievements) {
+        const tr = document.createElement('tr');
+        tr.dataset.achId = a.id;
+        const thVal = a.criterion === 'SURVEY_DONE' ? '' : (a.criterionThreshold ?? '');
+        tr.innerHTML = `
+          <td style="font-size:11px; word-break:break-all; max-width:120px">${escAttr(a.id)}</td>
+          <td>
+            <div class="row" style="align-items:flex-end">
+              <div style="flex:1; min-width:120px"><label>Название</label><input class="achTitle" value="${escAttr(a.title)}" style="width:100%" /></div>
+              <div style="flex:2; min-width:160px"><label>Описание</label><input class="achDesc" value="${escAttr(a.description)}" style="width:100%" /></div>
+              <div style="min-width:200px"><label>Условие</label><select class="achCrit">${optHtml(ACH_CRITERION_OPTS, a.criterion)}</select></div>
+              <div><label>Порог</label><input class="achTh" type="number" min="1" style="width:72px" value="${escAttr(thVal)}" /></div>
+            </div>
+          </td>
+          <td><label>Порядок</label><input class="achSort" type="number" value="${a.sortOrder}" style="width:64px" /></td>
+          <td><label>Активно</label><select class="achAct"><option value="true">Да</option><option value="false">Нет</option></select></td>
+          <td><button type="button" class="saveAch">Сохранить</button></td>`;
+        tr.querySelector('.achAct').value = a.isActive ? 'true' : 'false';
+        tb.appendChild(tr);
+      }
+      syncAchThreshInputs(tb);
+      tb.querySelectorAll('.achCrit').forEach((sel) => {
+        sel.onchange = () => syncAchThreshInputs(tb);
+      });
+      tb.querySelectorAll('.saveAch').forEach((btn) => {
+        btn.onclick = async () => {
+          const row = btn.closest('tr');
+          const id = row.dataset.achId;
+          const crit = row.querySelector('.achCrit').value;
+          const thRaw = row.querySelector('.achTh').value;
+          const payload = {
+            title: row.querySelector('.achTitle').value.trim(),
+            description: row.querySelector('.achDesc').value.trim(),
+            criterion: crit,
+            sortOrder: Number(row.querySelector('.achSort').value),
+            isActive: row.querySelector('.achAct').value === 'true',
+          };
+          if (crit !== 'SURVEY_DONE') {
+            if (!thRaw) return alert('Укажите порог для выбранного условия');
+            payload.criterionThreshold = Number(thRaw);
+          } else {
+            payload.criterionThreshold = null;
+          }
+          try {
+            await api('/api/admin/achievements/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
+            showMsg('Достижение сохранено');
+            await reloadAchievements();
+          } catch (e) {
+            alert(e.message);
+          }
+        };
+      });
+    }
+
+    async function reloadAll() {
+      try {
+        await reloadUsers();
+        await reloadAchievements();
+        await reloadExerciseLibrary();
+        await reloadPrograms();
+        showMsg('Данные обновлены');
+      } catch (e) {
+        showMsg(String(e.message || e), false);
+      }
+    }
+
+    document.getElementById('btnReloadUsers').onclick = () => reloadUsers().catch((e) => alert(e.message));
+    document.getElementById('btnReloadAchievements').onclick = () =>
+      reloadAchievements().catch((e) => alert(e.message));
+    document.getElementById('btnReloadPrograms').onclick = () => reloadPrograms().catch((e) => alert(e.message));
+    document.getElementById('btnReloadLib').onclick = () => reloadExerciseLibrary().catch((e) => alert(e.message));
+
+    document.getElementById('btnLibCreate').onclick = async () => {
+      const name = document.getElementById('nlName').value.trim();
+      const gifUrl = document.getElementById('nlGif').value.trim();
+      const difficulty = document.getElementById('nlDiff').value;
+      const sortOrder = Number(document.getElementById('nlSort').value) || 0;
+      const bodyFocuses = [...document.querySelectorAll('#nlFocus input.nlF:checked')].map((c) => c.value);
+      if (!name || !gifUrl) return alert('Название и URL GIF');
+      if (bodyFocuses.length < 1) return alert('Выберите хотя бы одну группу мышц');
+      try {
+        await api('/api/admin/exercise-library', {
+          method: 'POST',
+          body: JSON.stringify({ name, gifUrl, difficulty, bodyFocuses, sortOrder }),
+        });
+        document.getElementById('nlName').value = '';
+        document.getElementById('nlGif').value = '';
+        document.getElementById('nlSort').value = '0';
+        document.querySelectorAll('#nlFocus input.nlF').forEach((c) => {
+          c.checked = false;
+        });
+        showMsg('Добавлено в реестр');
+        await reloadExerciseLibrary();
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    document.getElementById('naCrit').onchange = () => {
+      const dis = document.getElementById('naCrit').value === 'SURVEY_DONE';
+      const inp = document.getElementById('naThresh');
+      inp.disabled = dis;
+      if (dis) inp.value = '';
+    };
+
+    document.getElementById('btnCreateAch').onclick = async () => {
+      const title = document.getElementById('naTitle').value.trim();
+      const description = document.getElementById('naDesc').value.trim();
+      const crit = document.getElementById('naCrit').value;
+      if (!title || !description) return alert('Название и описание');
+      const body = {
+        title,
+        description,
+        criterion: crit,
+        sortOrder: Number(document.getElementById('naSort').value) || 0,
+        isActive: document.getElementById('naAct').value === 'true',
+      };
+      if (crit !== 'SURVEY_DONE') {
+        const t = document.getElementById('naThresh').value;
+        if (!t) return alert('Укажите порог');
+        body.criterionThreshold = Number(t);
+      }
+      try {
+        await api('/api/admin/achievements', { method: 'POST', body: JSON.stringify(body) });
+        document.getElementById('naTitle').value = '';
+        document.getElementById('naDesc').value = '';
+        document.getElementById('naThresh').value = '';
+        document.getElementById('naSort').value = '0';
+        document.getElementById('naAct').value = 'true';
+        showMsg('Достижение создано');
+        await reloadAchievements();
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    document.getElementById('btnCreateUser').onclick = async () => {
+      const email = document.getElementById('nuEmail').value.trim();
+      const password = document.getElementById('nuPass').value;
+      const role = document.getElementById('nuRole').value;
+      const displayName = document.getElementById('nuName').value.trim();
+      if (!email || password.length < 8) return alert('Email и пароль ≥8');
+      try {
+        const body = { email, password, role };
+        if (displayName) body.displayName = displayName;
+        await api('/api/admin/users', { method: 'POST', body: JSON.stringify(body) });
+        document.getElementById('nuEmail').value = '';
+        document.getElementById('nuName').value = '';
+        document.getElementById('nuPass').value = '';
+        showMsg('Пользователь создан');
+        await reloadUsers();
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    document.getElementById('btnCreateProgram').onclick = async () => {
+      const title = document.getElementById('npTitle').value.trim();
+      const isPremium = document.getElementById('npPrem').value === 'true';
+      const assignmentKey = document.getElementById('npKey').value.trim() || null;
+      const description = document.getElementById('npDesc').value.trim() || null;
+      const sortOrder = Number(document.getElementById('npSort').value) || 0;
+      const coverRaw = document.getElementById('npCover').value.trim();
+      const coverImageUrl = coverRaw || null;
+      if (!title) return alert('Название');
+      const { program } = await api('/api/admin/programs', {
+        method: 'POST',
+        body: JSON.stringify({ title, isPremium, assignmentKey, coverImageUrl, description, sortOrder }),
+      });
+      document.getElementById('npTitle').value = '';
+      document.getElementById('npDesc').value = '';
+      document.getElementById('npKey').value = '';
+      document.getElementById('npCover').value = '';
+      document.getElementById('npSort').value = '0';
+      await reloadPrograms();
+      document.getElementById('progSelect').value = program.id;
+      await openProgramEditor(program.id);
+      showMsg('Программа создана — добавьте дни и упражнения');
+    };
+
+    fillSelect(document.getElementById('newDayFocus'), BODY_FOCUS_OPTS, 'FULL_BODY');
+    fillSelect(document.getElementById('naCrit'), ACH_CRITERION_OPTS, 'WORKOUT_COUNT');
+    fillSelect(document.getElementById('nlDiff'), LIB_DIFF_OPTS, 'MEDIUM');
+    buildNlFocusCheckboxes();
+
+    if (token) {
+      document.getElementById('loginBox').style.display = 'none';
+      document.getElementById('panel').style.display = 'block';
+      reloadAll().catch(() => {
+        token = '';
+        localStorage.removeItem('admin_jwt');
+        document.getElementById('loginBox').style.display = 'block';
+        document.getElementById('panel').style.display = 'none';
+      });
+    }
+  </script>
+</body>
+</html>

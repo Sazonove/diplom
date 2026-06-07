@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "TrainingGoal" AS ENUM ('WEIGHT_LOSS', 'MUSCLE_GAIN', 'MAINTENANCE', 'ENDURANCE', 'GENERAL_FITNESS');
+
+-- AlterTable
+ALTER TABLE "Profile" ADD COLUMN "trainingGoal" "TrainingGoal" NOT NULL DEFAULT 'GENERAL_FITNESS';

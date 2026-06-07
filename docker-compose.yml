@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: diplom
+      POSTGRES_PASSWORD: diplom
+      POSTGRES_DB: diplom
+      # Только для локальной разработки: не проверять пароль по TCP.
+      # Вступает в силу при первом создании данных (после down -v).
+      POSTGRES_HOST_AUTH_METHOD: trust
+    # 5433 снаружи — чтобы не пересекаться с локальным PostgreSQL на Windows (частая причина P1000).
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U diplom -d diplom"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - diplom_pg:/var/lib/postgresql/data
+
+volumes:
+  diplom_pg:
